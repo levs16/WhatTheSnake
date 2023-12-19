@@ -1,13 +1,19 @@
 import pygame
-import time
-import random
+import socket
+import pickle
 
 pygame.init()
+
+# Client configuration
+server_ip = "127.0.0.1"
+server_port = 5555
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client.connect((server_ip, server_port))
 
 # Set up display
 width, height = 800, 600
 game_display = pygame.display.set_mode((width, height))
-pygame.display.set_caption('Snake Game')
+pygame.display.set_caption('Multiplayer Snake Game - Client')
 
 # Colors
 white = (255, 255, 255)
@@ -30,7 +36,6 @@ def our_snake(snake_block, snake_list):
 # Game loop
 def game_loop():
     game_over = False
-    game_close = False
 
     # Initial snake position and movement
     x_snake, y_snake = width / 2, height / 2
@@ -40,25 +45,7 @@ def game_loop():
     snake_list = []
     length_of_snake = 1
 
-    # Food position
-    food_x, food_y = round(random.randrange(0, width - snake_block) / 10.0) * 10.0, round(random.randrange(0, height - snake_block) / 10.0) * 10.0
-
     while not game_over:
-
-        while game_close:
-            game_display.fill(black)
-            game_over_text = font.render("Game Over! Press Q-Quit or C-Play Again", True, red)
-            game_display.blit(game_over_text, [width / 6, height / 2])
-            pygame.display.update()
-
-            for event in pygame.event.get():
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_q:
-                        game_over = True
-                        game_close = False
-                    elif event.key == pygame.K_c:
-                        game_loop()
-
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 game_over = True
@@ -76,37 +63,20 @@ def game_loop():
                     y_snake_change = snake_block
                     x_snake_change = 0
 
-        # Update snake position
-        x_snake += x_snake_change
-        y_snake += y_snake_change
+        # Send the snake position to the server
+        snake_data = {'x': x_snake, 'y': y_snake}
+        client.send(pickle.dumps(snake_data))
 
-        # Check if snake hits the walls
-        if x_snake >= width or x_snake < 0 or y_snake >= height or y_snake < 0:
-            game_close = True
+        # Receive updated game state from the server
+        game_state_data = pickle.loads(client.recv(1024))
+        if game_state_data is not None:
+            # Extract relevant information from the received data
+            x_snake = game_state_data['x']
+            y_snake = game_state_data['y']
+            snake_list = game_state_data['snake_list']
 
         game_display.fill(black)
-        pygame.draw.rect(game_display, white, [food_x, food_y, snake_block, snake_block])
-        snake_head = []
-        snake_head.append(x_snake)
-        snake_head.append(y_snake)
-        snake_list.append(snake_head)
-
-        if len(snake_list) > length_of_snake:
-            del snake_list[0]
-
-        # Check if snake eats food
-        for segment in snake_list[:-1]:
-            if segment == snake_head:
-                game_close = True
-
         our_snake(snake_block, snake_list)
-
-        pygame.display.update()
-
-        # Check if snake eats food, generate new food
-        if x_snake == food_x and y_snake == food_y:
-            food_x, food_y = round(random.randrange(0, width - snake_block) / 10.0) * 10.0, round(random.randrange(0, height - snake_block) / 10.0) * 10.0
-            length_of_snake += 1
 
         pygame.display.update()
 
@@ -116,6 +86,5 @@ def game_loop():
     pygame.quit()
     quit()
 
+# Start the game loop
 game_loop()
-
-# NOTICE: client.py is the only thing for now, there is no servr-side as for now! But it sure will be there soon! Stay tuned for updates :3
